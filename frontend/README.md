@@ -10,8 +10,7 @@ If you just cloned the repository:
 ```bash
 git clone https://github.com/emilyzucker1/SWEproject.git
 cd SWEproject/frontend
-
-1.If the folder already exists on your computer:
+If the folder already exists on your computer:
 cd ~/path/to/SWEproject/frontend
 
 2. Install dependencies
