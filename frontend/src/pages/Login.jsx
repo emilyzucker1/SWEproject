@@ -74,6 +74,15 @@ export default function Login() {
             <span className="text-gray-700 text-sm">Continue with Google</span>
           </button>
         </div>
+
+        <Link to="/test" className="text-blue-600 hover:underline">
+          <button
+              type="button"
+              className="w-3/5 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg font-medium text-sm transition mt-2"
+            >
+              Test Gif Page
+          </button>
+          </Link>
       </div>
     </div>
   );
