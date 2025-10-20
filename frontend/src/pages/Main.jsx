@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 
 export default function Main() {
-  // For now, we’ll just use a placeholder name
+  // a placeholder name
   const [name, setName] = useState("User");
 
-  // Later you can replace this with actual data from login (props, context, etc.)
+  // Later you can replace this with actual data from login
   useEffect(() => {
     // Example: fetch name from localStorage or API
     const storedName = localStorage.getItem("username");
