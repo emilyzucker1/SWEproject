@@ -1,11 +1,11 @@
 // Import the functions you need from the SDKs you need
 import { getApps, getApp, initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 
 
 // https://firebase.google.com/docs/web/setup#available-libraries for additional libraries
 
-const VITE_FIREBASE_API_KEY = "AIzaSyD9kysgMvE4LrhtZc_PuR_hwznNq6sdwB8"
+const VITE_FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY;
 
 
 // Your web app's Firebase configuration
@@ -27,5 +27,14 @@ const gifgivingApp = getApps().length
 
 const googleAuthProvider = new GoogleAuthProvider();
 const auth = getAuth(gifgivingApp);
+const user = auth.currentUser;
+const email = ""
 
-export { auth, googleAuthProvider };
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const uid = user.uid;
+    const email = user.email;
+  }
+});
+
+export { auth, googleAuthProvider, user, email };

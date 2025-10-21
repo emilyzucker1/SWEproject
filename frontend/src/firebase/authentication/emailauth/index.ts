@@ -4,7 +4,6 @@ import firebase from "firebase/compat/app";
 import { auth } from "../../index";
 import { useNavigate, NavigateFunction } from "react-router-dom";
 
-
 export const registerUser = async (
     name: string,
     email: string,
@@ -18,7 +17,7 @@ export const registerUser = async (
         const userCredential = await createUserWithEmailAndPassword(
             auth, 
             email, 
-            password
+            password, 
         );
         const result = userCredential.user
         
@@ -48,7 +47,7 @@ export const loginUserwithEmailandPassword = async (
             password
         );
         const result = userCredential.user;
-        navigate('/register')
+        navigate('/main')
     } catch (error) {
         console.error("nothing happened");
     }

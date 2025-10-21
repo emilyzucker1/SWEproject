@@ -21,7 +21,6 @@ export default function Login() {
     loginUserwithEmailandPassword(email, password, navigate)
   };
 
-
   return (
     <div
       className="min-h-screen flex flex-col items-center pt-24 bg-cover bg-center bg-no-repeat"
@@ -102,5 +101,4 @@ export default function Login() {
     </div>
   );
 }
-
 
