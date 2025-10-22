@@ -1,12 +1,9 @@
-// Import the functions you need from the SDKs you need
 import { getApps, getApp, initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 
-
 // https://firebase.google.com/docs/web/setup#available-libraries for additional libraries
 
-const VITE_FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY;
-
+const VITE_FIREBASE_API_KEY = "AIzaSyD9kysgMvE4LrhtZc_PuR_hwznNq6sdwB8";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -22,18 +19,18 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const gifgivingApp = getApps().length 
-? getApp()
-: initializeApp(firebaseConfig);
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
 const googleAuthProvider = new GoogleAuthProvider();
 const auth = getAuth(gifgivingApp);
-const user = auth.currentUser;
-const email = ""
+let user = auth.currentUser;
+let email = "";
 
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    const uid = user.uid;
-    const email = user.email;
+onAuthStateChanged(auth, (userParam) => {
+  if (userParam) {
+    user = userParam;
+    email = userParam.email;
   }
 });
 

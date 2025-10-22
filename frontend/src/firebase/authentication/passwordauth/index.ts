@@ -1,7 +1,7 @@
 import { getAuth, sendPasswordResetEmail } from "firebase/auth";
 import { set } from "firebase/database";
 import firebase from "firebase/compat/app";
-import { auth } from "../../index";
+import { auth } from "../../index.js";
 import { useNavigate, NavigateFunction } from "react-router-dom";
 
 export const forgotPassword = async (
