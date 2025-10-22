@@ -3,7 +3,8 @@ import { getAuth, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 
 // https://firebase.google.com/docs/web/setup#available-libraries for additional libraries
 
-const VITE_FIREBASE_API_KEY = "AIzaSyD9kysgMvE4LrhtZc_PuR_hwznNq6sdwB8";
+const VITE_FIREBASE_API_KEY = import.meta.env.VITE_FIREBASE_API_KEY;
+console.log(VITE_FIREBASE_API_KEY);
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional

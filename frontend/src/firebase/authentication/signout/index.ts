@@ -8,7 +8,7 @@ export const signOutUser = async (
     try {
         await signOut(auth);
         alert("You have been signed out.");
-        navigate('/home')
+        navigate('/')
     } catch (error) {
     console.error(error);
     }
