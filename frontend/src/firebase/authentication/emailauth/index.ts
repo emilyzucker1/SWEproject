@@ -49,6 +49,7 @@ export const loginUserwithEmailandPassword = async (
         const result = userCredential.user;
         navigate('/main')
     } catch (error) {
+        alert("Your username or password is incorrect.");
         console.error("nothing happened");
     }
 };
