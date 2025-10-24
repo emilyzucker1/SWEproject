@@ -1,6 +1,6 @@
 // src/pages/ForgotPassword.jsx
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from 'react';
+import { useState } from "react";
 import { forgotPassword } from "../firebase/authentication/passwordauth";
 
 export default function ForgotPassword() {
@@ -12,46 +12,50 @@ export default function ForgotPassword() {
   }
 
   const handleSubmit = (e) => {
-      e.preventDefault();
-      forgotPassword(email, navigate);
+    e.preventDefault();
+    forgotPassword(email, navigate);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center pt-24">
-      <div className="bg-white shadow-xl rounded-2xl w-[90%] max-w-sm p-6">
-        <h1 className="text-2xl font-semibold text-center text-blue-700 mb-6">
+    <div className="min-h-screen bg-pink-200 flex flex-col items-center justify-start pt-[25vh]">
+      <div className="bg-white shadow-lg rounded-2xl w-[80%] max-w-lg p-10 text-center">
+        <h1 className="text-4xl font-bold text-pink-700 mb-8">
           Forgot Password 🔑
         </h1>
 
-        <p className="text-sm text-gray-600 text-center mb-6">
+        <p className="text-lg text-gray-700 mb-10 leading-snug max-w-md mx-auto">
           Enter your email address and we’ll send you a link to reset your password.
         </p>
 
-        <form className="space-y-4 flex flex-col items-center" onSubmit={handleSubmit}> 
-          <div className="w-4/5">
-            <label className="block text-sm font-medium text-gray-600 mb-1">
+        <form
+          className="flex flex-col items-center space-y-6"
+          onSubmit={handleSubmit}
+        >
+          <div className="w-[80%] text-left">
+            <label className="block text-lg font-semibold text-gray-700 mb-2">
               Email
             </label>
             <input
               type="email"
               placeholder="you@example.com"
-              className="w-full px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-400 outline-none text-sm"
+              className="w-full px-3 py-2 rounded-lg border border-gray-400 focus:ring-2 focus:ring-pink-400 outline-none text-xl text-gray-800 tracking-wide"
               onChange={handleEmail}
               value={email}
+              required
             />
           </div>
 
           <button
             type="submit"
-            className="w-3/5 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-lg font-medium text-sm transition mt-2"
+            className="bg-pink-600 hover:bg-pink-700 text-white font-semibold text-lg py-2 px-6 rounded-lg shadow-md transition"
           >
             Send Reset Link
           </button>
         </form>
 
-        <div className="text-center mt-5 text-sm text-gray-500">
+        <div className="text-center mt-8 text-base text-gray-600">
           Remember your password?{" "}
-          <Link to="/login" className="text-blue-600 hover:underline">
+          <Link to="/login" className="text-pink-600 hover:underline font-semibold">
             Back to Sign in
           </Link>
         </div>
@@ -59,3 +63,4 @@ export default function ForgotPassword() {
     </div>
   );
 }
+
