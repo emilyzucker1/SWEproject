@@ -7,6 +7,7 @@ import boyImg from "../assets/aisatsu_kodomo_zenshin_boy.png";
 import girlImg from "../assets/aisatsu_kodomo_zenshin_girl.png";
 
 export default function Register() {
+  console.log('register component')
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,17 +20,20 @@ export default function Register() {
     setIsLoading(true);
     setError("");
 
+    console.log("submit ran")
+
     try {
       const userCredential = await registerUser(
         name,
         email,
         password,
-        setIsLoading,
-        navigate
+        setIsLoading
       );
       const firebaseUser = userCredential?.user;
 
       if (firebaseUser) {
+
+        console.log("firebase check")
         await saveUserToBackend({
           name,
           email,

@@ -3,6 +3,10 @@ semester project for intro to swe
 
 
 backend:
+build:
+```bash
+docker-compose up --build -d
+```
 
 build and run:
 ```bash
