@@ -27,7 +27,8 @@ export default function Register() {
         name,
         email,
         password,
-        setIsLoading
+        setIsLoading, 
+        navigate
       );
       const firebaseUser = userCredential?.user;
 

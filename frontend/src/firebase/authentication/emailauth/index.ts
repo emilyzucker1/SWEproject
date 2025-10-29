@@ -8,7 +8,8 @@ export async function registerUser(
   name: string,
   email: string,
   password: string,
-  setLoading: React.Dispatch<React.SetStateAction<boolean>>
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>, 
+  navigate: NavigateFunction,
 ) {
   const auth = getAuth();
 
@@ -20,17 +21,16 @@ export async function registerUser(
     const user = userCredential.user;
 
     // Send a verification email
-    await sendEmailVerification(user);
-
-    alert("✅ A verification email has been sent to your email address.");
+    alert("✅ Your account has been registered.");
 
     // Return the created user info
     return userCredential;
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error during registration:", error);
-    throw new Error(error.message || "Failed to register user");
+    //throw new Error(error.message || "Failed to register user");
   } finally {
     setLoading(false);
+    navigate('/login');
   }
 }
 
