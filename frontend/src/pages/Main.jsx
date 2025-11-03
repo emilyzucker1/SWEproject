@@ -7,11 +7,18 @@ import jiraiImg from "../assets/jirai_uruuru.png";
 export default function Main() {
   const [name, setName] = useState("User");
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
-      const storedName = email;
-      if (storedName) setName(storedName);
+      if (user) {
+        const storedName = email;
+        if (storedName) setName(storedName);
+        setIsLoading(false);
+      }
+      else {
+        navigate("/");
+      }
     } catch (error) {
       console.log(error);
     }
@@ -20,12 +27,16 @@ export default function Main() {
   const handleSignOut = async () => {
     try {
       await signOutUser();
+      setIsLoading(true);
       navigate("/"); // ✅ 退出后回到 Home 页面
     } catch (error) {
       console.error("Sign-out failed:", error);
     }
   };
 
+  if (isLoading) {
+    <div>Loading...</div>
+  } else {
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-pink-200 pt-32">
       <div className="bg-white rounded-2xl shadow-xl p-10 text-center w-full max-w-md">
@@ -60,5 +71,6 @@ export default function Main() {
       </div>
     </div>
   );
+  }
 }
 
