@@ -59,29 +59,5 @@ export const loginUserwithEmailandPassword = async (
 };
 
 // Fetch protected user data from backend using Firebase ID token for auth.
-export async function fetchUserData(userId: string) {
-  const authInstance = getAuth();
-  const currentUser = authInstance.currentUser;
-
-  if (!currentUser) {
-    throw new Error("Not signed in");
-  }
-
-  // Get the ID token for the current user (short-lived, refreshed automatically).
-  const idToken = await currentUser.getIdToken();
-
-  const res = await fetch(`http://localhost:3000/api/users/${encodeURIComponent(userId)}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${idToken}`,
-    },
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Request failed: ${res.status} ${text}`);
-  }
-
-  return await res.json();
-}
+// NOTE: The fetchUserData helper that used ID tokens to call a protected backend route
+// was removed per request. If you want to reintroduce it later, we can add it back.
