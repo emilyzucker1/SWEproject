@@ -1,5 +1,5 @@
 import { getApps, getApp, initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, setPersistence, browserSessionPersistence } from "firebase/auth";
 
 // https://firebase.google.com/docs/web/setup#available-libraries for additional libraries
 
@@ -24,16 +24,18 @@ const gifgivingApp = getApps().length
 
 const googleAuthProvider = new GoogleAuthProvider();
 const auth = getAuth(gifgivingApp);
-let user = auth.currentUser;
+let user = null;
 let email = "";
 let userID = "";
+let username = "";
 
 onAuthStateChanged(auth, (userParam) => {
   if (userParam) {
     user = userParam;
     email = userParam.email;
     userID = userParam.uid;
+    username = userParam.displayName;
   }
 });
 
-export { auth, googleAuthProvider, user, email, userID };
+export { auth, googleAuthProvider, user, email, userID, username };

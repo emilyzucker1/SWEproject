@@ -1,4 +1,4 @@
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserSessionPersistence, updateProfile } from "firebase/auth";
 import { set } from "firebase/database";
 import firebase from "firebase/compat/app";
 import { auth } from "../../index.js";
@@ -19,6 +19,11 @@ export async function registerUser(
     // Create the user in Firebase
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+
+    // Update the user's displayName with the provided name
+    if (user) {
+      await updateProfile(user, { displayName: name });
+    }
 
     // Send a verification email
     alert("✅ Your account has been registered.");
@@ -52,3 +57,31 @@ export const loginUserwithEmailandPassword = async (
         console.error("nothing happened");
     }
 };
+
+// Fetch protected user data from backend using Firebase ID token for auth.
+export async function fetchUserData(userId: string) {
+  const authInstance = getAuth();
+  const currentUser = authInstance.currentUser;
+
+  if (!currentUser) {
+    throw new Error("Not signed in");
+  }
+
+  // Get the ID token for the current user (short-lived, refreshed automatically).
+  const idToken = await currentUser.getIdToken();
+
+  const res = await fetch(`http://localhost:3000/api/users/${encodeURIComponent(userId)}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Request failed: ${res.status} ${text}`);
+  }
+
+  return await res.json();
+}

@@ -82,7 +82,7 @@ export default function Register() {
         >
           <div className="w-3/5 flex flex-col items-start">
             <label className="block text-3xl font-semibold text-gray-700 mb-3">
-              Full Name
+              Username
             </label>
             <input
               type="text"

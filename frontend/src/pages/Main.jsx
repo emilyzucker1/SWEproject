@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { auth, user, email } from "../firebase/index.js";
+import { auth } from "../firebase/index.js";
+import { onAuthStateChanged } from "firebase/auth";
 import { signOutUser } from "../firebase/authentication/signout/index.js";
 import { useNavigate } from "react-router-dom";
 import jiraiImg from "../assets/jirai_uruuru.png";
@@ -10,19 +11,24 @@ export default function Main() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      if (user) {
-        const storedName = email;
-        if (storedName) setName(storedName);
-        setIsLoading(false);
+    // Listen for auth state changes so we get the displayName once the SDK initializes.
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      try {
+        if (u) {
+          const display = u.displayName || u.email || "User";
+          setName(display);
+          setIsLoading(false);
+        } else {
+          // Not signed in -> redirect to home/login
+          navigate("/");
+        }
+      } catch (error) {
+        console.error(error);
       }
-      else {
-        navigate("/");
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  }, []);
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
 
   const handleSignOut = async () => {
     try {
@@ -35,8 +41,9 @@ export default function Main() {
   };
 
   if (isLoading) {
-    <div>Loading...</div>
-  } else {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start bg-pink-200 pt-32">
       <div className="bg-white rounded-2xl shadow-xl p-10 text-center w-full max-w-md">
@@ -71,6 +78,5 @@ export default function Main() {
       </div>
     </div>
   );
-  }
 }
 
