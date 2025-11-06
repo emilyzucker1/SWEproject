@@ -1,4 +1,4 @@
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, setPersistence, browserSessionPersistence, updateProfile } from "firebase/auth";
 import { set } from "firebase/database";
 import firebase from "firebase/compat/app";
 import { auth } from "../../index.js";
@@ -19,6 +19,11 @@ export async function registerUser(
     // Create the user in Firebase
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+
+    // Update the user's displayName with the provided name
+    if (user) {
+      await updateProfile(user, { displayName: name });
+    }
 
     // Send a verification email
     alert("✅ Your account has been registered.");
@@ -52,3 +57,7 @@ export const loginUserwithEmailandPassword = async (
         console.error("nothing happened");
     }
 };
+
+// Fetch protected user data from backend using Firebase ID token for auth.
+// NOTE: The fetchUserData helper that used ID tokens to call a protected backend route
+// was removed per request. If you want to reintroduce it later, we can add it back.

@@ -67,3 +67,4 @@ app.post("/api/users", verifyToken, async (req, res) => {
     res.status(500).send("Server error while saving user");
   }
 });
+
