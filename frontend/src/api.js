@@ -11,7 +11,7 @@ export async function saveUserToBackend(userData) {
 
   console.log("Ran save user to backend")
 
-  const response = await fetch("http://localhost:5001/api/users", {
+  const response = await fetch("http://localhost:5001/api/me", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
