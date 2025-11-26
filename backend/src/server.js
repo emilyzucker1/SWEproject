@@ -133,3 +133,119 @@ app.post('/api/me', verifyToken, async (req, res) => {
     res.status(500).send("Server error while saving user");
   }
 });
+
+app.get("/api/users/me", verifyToken, async (req, res) => {
+  try {
+    const authedUid = req.auth.uid;
+    const user = await User.findOne({ id: authedUid }).lean();
+
+    if (!user) {
+      return res.status(404).json({ error: "Current user not found" });
+    }
+
+    return res.json({ user });
+  } catch (err) {
+    console.error("Error fetching current user:", err);
+    return res
+      .status(500)
+      .json({ error: "Server error while fetching current user" });
+  }
+});
+
+app.post('/api/users/:id/follow', verifyToken, async (req, res) => {
+  try {
+    const authedUid = req.auth.uid;     // current logged-in Firebase UID
+    const targetId = req.params.id;     // user to follow (their `id` field)
+
+    // 1. Prevent following yourself
+    if (authedUid === targetId) {
+      return res.status(400).json({ error: "You cannot follow yourself." });
+    }
+
+    // 2. Make sure target user exists
+    const targetUser = await User.findOne({ id: targetId });
+    if (!targetUser) {
+      return res.status(404).json({ error: "User to follow not found." });
+    }
+
+    // 3. Make sure current user exists
+    const currentUser = await User.findOne({ id: authedUid });
+    if (!currentUser) {
+      return res.status(404).json({ error: "Current user not found." });
+    }
+
+    // 4. Add target to following list if not already there
+    const alreadyFollowing = currentUser.following.includes(targetId);
+    if (!alreadyFollowing) {
+      currentUser.following.push(targetId);
+      await currentUser.save();
+    }
+
+    // 5. Return updated current user (or just following list if you prefer)
+    return res.json({
+      success: true,
+      message: alreadyFollowing
+        ? "You are already following this user."
+        : "Now following user.",
+      user: currentUser
+    });
+  } catch (err) {
+    console.error("Error following user:", err);
+    return res.status(500).json({ error: "Server error while following user." });
+  }
+});
+
+app.post('/api/users/:id/unfollow', verifyToken, async (req, res) => {
+  try {
+    const authedUid = req.auth.uid;
+    const targetId = req.params.id;
+
+    if (authedUid === targetId) {
+      return res.status(400).json({ error: "You cannot unfollow yourself." });
+    }
+
+    const targetUser = await User.findOne({ id: targetId });
+    if (!targetUser) {
+      return res.status(404).json({ error: "User to unfollow not found." });
+    }
+
+    const currentUser = await User.findOne({ id: authedUid });
+    if (!currentUser) {
+      return res.status(404).json({ error: "Current user not found." });
+    }
+
+    const beforeCount = currentUser.following.length;
+    currentUser.following = currentUser.following.filter(
+      (id) => id !== targetId
+    );
+    const afterCount = currentUser.following.length;
+
+    if (beforeCount !== afterCount) {
+      await currentUser.save();
+    }
+
+    return res.json({
+      success: true,
+      message:
+        beforeCount === afterCount
+          ? "You were not following this user."
+          : "User unfollowed.",
+      user: currentUser
+    });
+  } catch (err) {
+    console.error("Error unfollowing user:", err);
+    return res.status(500).json({ error: "Server error while unfollowing user." });
+  }
+});
+
+app.get("/api/users", verifyToken, async (req, res) => {
+  try {
+    const users = await User.find({}, { gifs: 0 }).lean(); // no gifs, lighter
+    return res.json({ users });
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    return res
+      .status(500)
+      .json({ error: "Server error while fetching users" });
+  }
+});
