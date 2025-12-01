@@ -8,6 +8,7 @@ import { User } from './models/User.js'
 
 import { verifyToken } from './middleware/authentication.js'
 import gifRoutes from './routes/gifRoutes.js'
+import promptRoutes from './routes/promptRoutes.js'
 import admin from './firebaseAdmin.js'
 
 async function syncFirebaseUsersToMongo() {
@@ -81,6 +82,7 @@ app.use(cors({
 
 app.use(bodyParser.json())
 app.use("/api", gifRoutes);
+app.use("/api", promptRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)

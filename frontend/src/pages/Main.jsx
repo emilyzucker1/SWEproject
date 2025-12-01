@@ -4,6 +4,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { signOutUser } from "../firebase/authentication/signout/index.js";
 import { useNavigate } from "react-router-dom";
 import jiraiImg from "../assets/jirai_uruuru.png";
+import { deleteGif } from "../api.js";
 
 const API_BASE = "http://localhost:5001";
 
@@ -33,6 +34,36 @@ const Spinner = () => (
   <div className="animate-spin rounded-full h-5 w-5 border-2 border-zinc-600 border-t-pink-500"></div>
 );
 
+// Helper function to extract GIF name from Tenor URL
+const extractGifName = (url) => {
+  try {
+    // Tenor URLs: https://media.tenor.com/KDWou_IneW4AAAAC/dangiuz-cyberpunk.gif
+    // Giphy URLs: https://media.giphy.com/media/xyz/giphy.gif
+    const match = url.match(/\/([^\/]+)\.(gif|mp4)$/i);
+    if (match) {
+      const filename = match[1];
+      // For Tenor, extract the descriptive part after the ID
+      const parts = filename.split('/');
+      const lastPart = parts[parts.length - 1];
+      
+      // If it has a hyphenated description (like "dangiuz-cyberpunk"), use that
+      if (lastPart.includes('-')) {
+        return lastPart.split('-').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+      }
+      
+      // Otherwise just return the filename cleaned up
+      return lastPart.replace(/[_-]/g, ' ').split(' ').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
 export default function Main() {
   const navigate = useNavigate();
 
@@ -48,6 +79,11 @@ export default function Main() {
   const [gifs, setGifs] = useState([]);
   const [gifsLoading, setGifsLoading] = useState(false);
   const [generateLoading, setGenerateLoading] = useState(false);
+  const [deletingGifId, setDeletingGifId] = useState(null);
+  // Preview + Recent Generations
+  const [previewGif, setPreviewGif] = useState(null); // { url, title }
+  const [recentGenerations, setRecentGenerations] = useState([]); // array of { url, title }
+  const [savingPreview, setSavingPreview] = useState(false);
 
   // Account State
   const [users, setUsers] = useState([]);
@@ -93,9 +129,20 @@ export default function Main() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      console.log("Loaded GIFs:", data.gifs); // Debug log
       setGifs(data.gifs || []);
     } finally {
       setGifsLoading(false);
+    }
+  });
+
+  const handleDeleteGif = (gifId) => handleApiCall(async () => {
+    setDeletingGifId(gifId);
+    try {
+      await deleteGif(gifId);
+      setGifs(prev => prev.filter(g => g._id !== gifId));
+    } finally {
+      setDeletingGifId(null);
     }
   });
 
@@ -103,22 +150,100 @@ export default function Main() {
     setGenerateLoading(true);
     try {
       const token = await getTokenOrThrow();
-      const res = await fetch(`${API_BASE}/api/me/gifs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          q: query,
-          contentfilter: "low",
-          media_filter: "gif,tinygif",
-          limit: 1,
-        }),
+      
+      // First, get the user's saved GIFs to check for duplicates
+      const savedRes = await fetch(`${API_BASE}/api/me/gifs`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      if (data.gif?.url) setLastGifUrl(data.gif.url);
-      loadMyGifs();
+      const savedData = await savedRes.json();
+      const savedUrls = new Set((savedData.gifs || []).map(g => g.url));
+      const triedUrls = new Set((recentGenerations || []).map(r => r.url));
+      if (previewGif?.url) triedUrls.add(previewGif.url);
+      
+      // Search for GIFs without saving (using the search endpoint)
+      let foundGif = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      while (!foundGif && attempts < maxAttempts) {
+        // add random offset to vary results and avoid repeating top results
+        const randomOffset = Math.floor(Math.random() * 50);
+        const searchRes = await fetch(`${API_BASE}/api/gifs/search?q=${encodeURIComponent(query)}&limit=5&random=true&offset=${randomOffset}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const searchData = await searchRes.json();
+        
+        if (!searchRes.ok) throw new Error(searchData.error);
+        
+        const results = searchData.gifs || [];
+        
+        // Find the first GIF that isn't already saved
+        for (const gif of results) {
+          if (
+            gif.url &&
+            !savedUrls.has(gif.url) &&
+            !triedUrls.has(gif.url) &&
+            gif.url !== previewGif?.url
+          ) {
+            foundGif = gif; // Store the whole gif object with title
+            break;
+          }
+        }
+        
+        if (!foundGif) {
+          attempts++;
+        }
+      }
+      
+      if (foundGif) {
+        // Do NOT save. Show in preview and append to recent generations.
+        setPreviewGif({ url: foundGif.url, title: foundGif.title || null });
+        setRecentGenerations(prev => {
+          const exists = prev.some(r => r.url === foundGif.url);
+          const next = exists ? prev : [{ url: foundGif.url, title: foundGif.title || null }, ...prev];
+          return next.slice(0, 12);
+        });
+        setLastGifUrl(foundGif.url);
+      } else {
+        setError("All recent GIFs for this query are already saved. Try a different prompt.");
+      }
     } finally {
       setGenerateLoading(false);
+    }
+  });
+
+  // Toggle save/delete for preview GIF
+  const handleTogglePreviewSave = () => handleApiCall(async () => {
+    if (!previewGif) return;
+    setSavingPreview(true);
+    try {
+      const token = await getTokenOrThrow();
+      // Check if preview is already saved
+      const existing = gifs.find((g) => g.url === previewGif.url);
+      if (existing) {
+        // Delete it
+        const delRes = await fetch(`${API_BASE}/api/me/gifs/${existing._id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const delData = await delRes.json();
+        if (!delRes.ok) throw new Error(delData.error || "Failed to delete GIF");
+        // Update local list
+        setGifs((prev) => prev.filter((g) => g._id !== existing._id));
+      } else {
+        // Save it
+        const res = await fetch(`${API_BASE}/api/me/gifs`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url: previewGif.url, title: previewGif.title || "" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to save GIF");
+        // Refresh or append
+        await loadMyGifs();
+      }
+    } finally {
+      setSavingPreview(false);
     }
   });
 
@@ -269,14 +394,26 @@ export default function Main() {
                    </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {gifs.map((g, i) => (
-                      <Card key={i} className="group relative aspect-square">
-                        <img src={g.url} alt="gif" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3">
-                          <span className="text-xs font-mono text-pink-400">GIF_ID_{i}</span>
-                        </div>
-                      </Card>
-                    ))}
+                    {gifs.map((g, i) => {
+                      const gifName = extractGifName(g.url) || `GIF ${i + 1}`;
+                      const isDeleting = deletingGifId === g._id;
+                      return (
+                        <Card key={i} className="group relative aspect-square">
+                          <img src={g.url} alt="gif" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3 pointer-events-none">
+                            <span className="text-xs font-mono text-pink-400">{gifName}</span>
+                                                    <button
+                                                      onClick={() => handleDeleteGif(g._id)}
+                                                      disabled={isDeleting}
+                                                      className="absolute top-2 right-2 z-20 w-8 h-8 bg-black/70 hover:bg-red-500 text-white text-xl rounded-full flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all disabled:opacity-50 pointer-events-auto"
+                                                      aria-label="Delete GIF"
+                                                    >
+                                                      {isDeleting ? <Spinner /> : "×"}
+                                                    </button>
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -301,26 +438,66 @@ export default function Main() {
                     </Button>
                   </Card>
                   
-                  <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3">Recent Generation</h3>
-                    {lastGifUrl ? (
-                      <div className="rounded-lg overflow-hidden border border-zinc-700">
-                         <img src={lastGifUrl} className="w-full h-auto" alt="Result" />
+                  {/* (Preview moved to right column) */}
+
+                  {/* Recent Generations */}
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-zinc-500 uppercase">Recent Generations</h3>
+                      <span className="text-xs text-zinc-500">{recentGenerations.length}</span>
+                    </div>
+                    {recentGenerations.length === 0 ? (
+                      <div className="h-24 grid place-items-center text-zinc-500 border border-dashed border-zinc-800 rounded-lg">
+                        Empty – generate something!
                       </div>
                     ) : (
-                      <div className="h-32 flex items-center justify-center text-zinc-600 text-sm italic">
-                        No recent output
+                      <div className="grid grid-cols-3 gap-3">
+                        {recentGenerations.map((rg, i) => (
+                          <div key={i} className="relative">
+                            <img src={rg.url} alt="recent" className="w-full h-24 object-cover rounded" />
+                            <div className="absolute bottom-1 left-1 bg-black/60 text-[10px] px-1 py-0.5 rounded">
+                              {extractGifName(rg.url) || rg.title || `GIF ${i+1}`}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
-                  </div>
+                  </Card>
                 </div>
                 
-                <div className="hidden lg:block">
-                  <div className="h-full bg-zinc-900 rounded-xl border border-zinc-800 flex flex-col items-center justify-center p-8 text-center opacity-50">
-                    <div className="text-6xl mb-4 grayscale opacity-20">🎨</div>
-                    <h3 className="text-lg font-medium text-white">Preview Area</h3>
-                    <p className="text-zinc-500 text-sm max-w-xs mt-2">Generate a GIF to see the high-resolution preview here instantly.</p>
-                  </div>
+                <div className="block">
+                  <Card className="h-full p-6 flex flex-col">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-zinc-300">Preview</h3>
+                      {previewGif && (
+                        (() => {
+                          const isSaved = gifs.some((g) => g.url === previewGif.url);
+                          return (
+                            <Button 
+                              variant={isSaved ? "danger" : "secondary"} 
+                              onClick={handleTogglePreviewSave}
+                              disabled={savingPreview}
+                              className="text-xs"
+                            >
+                              {savingPreview ? <Spinner /> : (isSaved ? "🗑 Delete from Dashboard" : "❤ Save to Dashboard")}
+                            </Button>
+                          );
+                        })()
+                      )}
+                    </div>
+                    {!previewGif ? (
+                      <div className="flex-1 grid place-items-center text-zinc-500 border border-dashed border-zinc-800 rounded-lg">
+                        No preview yet. Generate a GIF to preview.
+                      </div>
+                    ) : (
+                      <div className="relative flex-1">
+                        <img src={previewGif.url} alt="preview" className="w-full h-auto max-h-[60vh] object-contain rounded-lg" />
+                        <div className="absolute bottom-2 left-2 bg-black/60 text-xs px-2 py-1 rounded">
+                          {extractGifName(previewGif.url) || previewGif.title || "Preview GIF"}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
                 </div>
               </div>
             )}

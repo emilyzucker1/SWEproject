@@ -5,7 +5,7 @@ import { verifyToken, ensureSelfParam } from "../middleware/authentication.js";
 
 const router = express.Router();
 
-// Shared Tenor search helper
+// Shared search helpers
 async function searchTenor(params) {
   if (!process.env.TENOR_API_KEY) {
     throw Object.assign(new Error("TENOR_API_KEY missing"), { status: 500 });
@@ -17,13 +17,33 @@ async function searchTenor(params) {
   return data;
 }
 
-// POST /api/me/gifs  -> search Tenor, save first usable URL into user's gifs
+// Fallback provider: Giphy
+async function searchGiphy(params) {
+  const GIPHY_SEARCH_URL = "https://api.giphy.com/v1/gifs/search";
+  const apiKey = process.env.GIPHY_API_KEY || "dc6zaTOxFJmzC"; // Public beta key fallback
+  const { q, limit = 20, offset, rating = "pg" } = params;
+  const { data } = await axios.get(GIPHY_SEARCH_URL, {
+    params: {
+      api_key: apiKey,
+      q,
+      limit,
+      offset,
+      rating,
+      lang: "en",
+    },
+  });
+  return data;
+}
+
+// POST /api/me/gifs  -> search Tenor, save first usable URL into user's gifs OR save direct URL
 router.post("/me/gifs", verifyToken, async (req, res) => {
   try {
     const uid = req.auth.uid;
 
     const {
       q,
+      url,  // Allow direct URL saving
+      title, // Allow title to be passed
       client_key = process.env.TENOR_CLIENT_KEY,
       country = "US",
       locale = "en_US",
@@ -36,8 +56,33 @@ router.post("/me/gifs", verifyToken, async (req, res) => {
       pos,
     } = req.body || {};
 
+    // If URL is provided directly, save it
+    if (url && typeof url === "string") {
+      const user = await User.findOne({ id: uid });
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      console.log("=== SAVING GIF ===");
+      console.log("URL:", url);
+      console.log("Title received:", title);
+      console.log("Title type:", typeof title);
+      
+      const gifToSave = { url, title: title || "" };
+      console.log("Object to push:", gifToSave);
+      
+      user.gifs.push(gifToSave);
+      await user.save();
+
+      const savedGif = user.gifs[user.gifs.length - 1];
+      console.log("Saved GIF from array:", savedGif);
+      console.log("Saved GIF toObject:", savedGif.toObject());
+      console.log("==================");
+      
+      return res.json({ success: true, gif: savedGif });
+    }
+
+    // Otherwise, search Tenor
     if (!q || typeof q !== "string") {
-      return res.status(400).json({ error: "Missing required 'q' (search string)" });
+      return res.status(400).json({ error: "Missing required 'q' (search string) or 'url'" });
     }
 
     const tenorParams = {
@@ -103,6 +148,119 @@ router.get("/me/gifs", verifyToken, async (req, res) => {
   } catch (err) {
     console.error("Error fetching GIFs:", err);
     return res.status(500).json({ error: "Server error while fetching user GIFs" });
+  }
+});
+
+// DELETE /api/me/gifs/:gifId -> delete a GIF from user's collection
+router.delete("/me/gifs/:gifId", verifyToken, async (req, res) => {
+  try {
+    const uid = req.auth.uid;
+    const { gifId } = req.params;
+
+    console.log("=== DELETE GIF REQUEST ===");
+    console.log("User ID:", uid);
+    console.log("GIF ID to delete:", gifId);
+
+    const user = await User.findOne({ id: uid });
+    if (!user) {
+      console.log("User not found");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    console.log("User has", user.gifs.length, "GIFs");
+    console.log("GIF IDs in collection:", user.gifs.map(g => g._id.toString()));
+
+    // Find and remove the GIF subdocument by _id using Mongoose helpers
+    const subdoc = user.gifs.id(gifId);
+    if (!subdoc) {
+      console.log("GIF not found in subdocuments");
+      return res.status(404).json({ error: "GIF not found" });
+    }
+    subdoc.deleteOne();
+    await user.save();
+    console.log("GIF deleted successfully via subdocument.deleteOne()");
+    console.log("=========================");
+    return res.json({ success: true, message: "GIF deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting GIF:", err);
+    return res.status(500).json({ error: "Server error while deleting GIF" });
+  }
+});
+
+// GET /api/gifs/search -> search Tenor without saving (returns array of results)
+router.get("/gifs/search", verifyToken, async (req, res) => {
+  try {
+    const {
+      q,
+      limit = 20,
+      pos,
+      random = false,
+    } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ error: "Missing required 'q' (search query)" });
+    }
+
+    // Prefer Tenor if API key set; otherwise use Giphy fallback
+    const hasTenor = !!process.env.TENOR_API_KEY;
+    if (hasTenor) {
+      const tenorParams = {
+        q,
+        client_key: process.env.TENOR_CLIENT_KEY,
+        country: "US",
+        locale: "en_US",
+        contentfilter: "low",
+        media_filter: "gif,tinygif",
+        ar_range: "all",
+        random: random === "true",
+        limit: parseInt(limit, 10),
+      };
+      if (pos) tenorParams.pos = pos;
+
+      const data = await searchTenor(tenorParams);
+      const results = (data?.results || [])
+        .map((result) => {
+          const media = result.media_formats || {};
+          return {
+            id: result.id,
+            url:
+              media?.gif?.url ||
+              media?.tinygif?.url ||
+              media?.mp4?.url ||
+              media?.tinymp4?.url,
+            previewUrl: media?.tinygif?.url || media?.gif?.url,
+            title: result.content_description || "",
+          };
+        })
+        .filter((gif) => gif.url);
+
+      return res.json({ success: true, gifs: results, next: data?.next || "" });
+    } else {
+      const giphyParams = {
+        q,
+        limit: parseInt(limit, 10),
+        offset: 0,
+        rating: "pg",
+      };
+      const data = await searchGiphy(giphyParams);
+      const results = (data?.data || [])
+        .map((item) => {
+          const mp4 = item?.images?.downsized_medium?.mp4 || item?.images?.original_mp4?.mp4;
+          const gifUrl = item?.images?.downsized?.url || item?.images?.original?.url;
+          return {
+            id: item.id,
+            url: gifUrl || mp4,
+            previewUrl: item?.images?.preview_gif?.url || gifUrl,
+            title: item?.title || "",
+          };
+        })
+        .filter((gif) => gif.url);
+
+      return res.json({ success: true, gifs: results, next: "" });
+    }
+  } catch (err) {
+    console.error("Error searching GIFs:", err?.response?.data || err);
+    return res.status(500).json({ error: "Server error while searching GIFs" });
   }
 });
 

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const gifSchema = new mongoose.Schema({
   url: { type: String, required: true },
+  title: { type: String, default: "" },
   dateAdded: { type: Date, default: Date.now },
   likes: { type: Number, default: 0 }
 });

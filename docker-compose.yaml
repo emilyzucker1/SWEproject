@@ -19,6 +19,8 @@ services:
     environment:
       - MONGO_URI=mongodb://mongo:27017/mydatabase
       - PORT=5000
+      - TENOR_API_KEY=${TENOR_API_KEY}
+      - TENOR_CLIENT_KEY=${TENOR_CLIENT_KEY}
     depends_on:
       - mongo
     command: ["npm", "start"]
