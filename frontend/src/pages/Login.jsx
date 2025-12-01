@@ -130,6 +130,7 @@ export default function Login() {
             Sign up
           </Link>
         </div>
+        {/* Removed Google sign-in for now b/c it doesn't have functionality.
         <div className="mt-10 flex justify-center">
           <button className="border-[5px] border-gray-300 rounded-2xl px-8 py-3 flex items-center gap-4 hover:bg-gray-50 transition text-2xl font-semibold">
             <img
@@ -140,6 +141,6 @@ export default function Login() {
             />
             <span className="text-gray-800">Continue with Google</span>
           </button>
-        </div>
+        </div>*/}
       </div>
     </div> )}
