@@ -43,7 +43,7 @@ export default function Main() {
   const [error, setError] = useState("");
 
   // GIF State
-  const [query, setQuery] = useState("cyberpunk city");
+  const [query, setQuery] = useState("motivational school gif");
   const [lastGifUrl, setLastGifUrl] = useState("");
   const [gifs, setGifs] = useState([]);
   const [gifsLoading, setGifsLoading] = useState(false);
@@ -54,6 +54,11 @@ export default function Main() {
   const [following, setFollowing] = useState([]);
   const [accountLoading, setAccountLoading] = useState(false);
 
+  // Following GIFs state
+  const [followingGifs, setFollowingGifs] = useState([]);
+  const [followingGifsLoading, setFollowingGifsLoading] = useState(false);
+  const [followingPage, setFollowingPage] = useState(1);
+  const [followingHasMore, setFollowingHasMore] = useState(true);
   // --- Auth & Data Fetching ---
 
   useEffect(() => {
@@ -99,6 +104,30 @@ export default function Main() {
     }
   });
 
+  const loadFollowingGifs = (page = 1) => handleApiCall(async () => {
+    setFollowingGifsLoading(true);
+    try {
+      const token = await getTokenOrThrow();
+      const res = await fetch(
+        `${API_BASE}/api/me/following/gifs?page=${page}&limit=10`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      console.log("Following GIFs response:", data);
+      if (!res.ok) throw new Error(data.error || "Failed to load following gifs");
+
+      const list = data.items || [];
+      console.log("Parsed items:", list);
+      setFollowingGifs(list);
+      setFollowingPage(page);
+      setFollowingHasMore(data.hasMore !== undefined ? data.hasMore : list.length === 10);
+    } finally {
+      setFollowingGifsLoading(false);
+    }
+  });
+
   const handleGenerate = () => handleApiCall(async () => {
     setGenerateLoading(true);
     try {
@@ -110,12 +139,16 @@ export default function Main() {
           q: query,
           contentfilter: "low",
           media_filter: "gif,tinygif",
-          limit: 1,
+          limit: 10,
         }),
       });
       const data = await res.json();
+      console.log("Generated GIF response:", data);
       if (!res.ok) throw new Error(data.error);
-      if (data.gif?.url) setLastGifUrl(data.gif.url);
+      if (data.gif?.url) {
+        console.log("New GIF URL:", data.gif.url);
+        setLastGifUrl(data.gif.url);
+      }
       loadMyGifs();
     } finally {
       setGenerateLoading(false);
@@ -154,7 +187,8 @@ export default function Main() {
   // Auto-load logic
   useEffect(() => {
     if (!authReady) return;
-    if (view === "feed" && gifs.length === 0) loadMyGifs();
+    if (view === "feed") loadMyGifs();
+    if (view === "following") loadFollowingGifs(1);
     if (view === "account") loadAccountData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, authReady]);
@@ -180,21 +214,22 @@ export default function Main() {
 
           <nav className="flex-1 p-4 space-y-1">
             {[
-              { id: "feed", label: "Dashboard", icon: "⊞" },
-              { id: "generate", label: "Generator", icon: "⚡" },
-              { id: "account", label: "Community", icon: "☺" }
+              { id: "feed",      label: "Dashboard",  icon: "⊞" },
+              { id: "generate",  label: "Generator",  icon: "⚡" },
+              { id: "following", label: "Following",  icon: "★" }, // NEW
+              { id: "account",   label: "Community",  icon: "☺" }
             ].map(item => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  view === item.id 
-                    ? "bg-zinc-800 text-white border border-zinc-700" 
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900"
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  view === item.id
+                    ? "bg-zinc-800 text-white"
+                    : "text-zinc-400 hover:bg-zinc-900"
                 }`}
               >
-                <span className="text-lg opacity-80">{item.icon}</span>
-                {item.label}
+                <span className="text-lg">{item.icon}</span>
+                <span>{item.label}</span>
               </button>
             ))}
           </nav>
@@ -204,7 +239,6 @@ export default function Main() {
                <img src={jiraiImg} alt="User" className="w-8 h-8 rounded-full bg-zinc-800 object-cover border border-zinc-700" />
                <div className="flex-1 min-w-0">
                  <p className="text-xs font-medium text-white truncate">{displayName}</p>
-                 <p className="text-[10px] text-zinc-500 truncate">Free Plan</p>
                </div>
             </div>
             <Button variant="secondary" className="w-full text-xs" onClick={() => signOutUser().then(() => navigate("/"))}>
@@ -217,13 +251,34 @@ export default function Main() {
         <main className="flex-1 overflow-y-auto relative">
           
           {/* Mobile Header */}
-          <header className="md:hidden h-16 border-b border-zinc-800 flex items-center justify-between px-4 sticky top-0 bg-black/80 backdrop-blur z-20">
-             <span className="font-bold text-white">GifGarden</span>
-             <div className="flex gap-2">
-               <button onClick={() => setView("feed")} className={`p-2 rounded ${view === 'feed' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>⊞</button>
-               <button onClick={() => setView("generate")} className={`p-2 rounded ${view === 'generate' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>⚡</button>
-               <button onClick={() => setView("account")} className={`p-2 rounded ${view === 'account' ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}>☺</button>
-             </div>
+           <header className="md:hidden h-16 border-b border-zinc-900 flex items-center justify-between px-4 sticky top-0 bg-black/80 backdrop-blur z-20">
+            <span className="font-bold text-white">GifGarden</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setView("feed")}
+                className={`p-2 rounded ${view === "feed" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              >
+                ⊞
+              </button>
+              <button
+                onClick={() => setView("generate")}
+                className={`p-2 rounded ${view === "generate" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              >
+                ⚡
+              </button>
+              <button
+                onClick={() => setView("following")}
+                className={`p-2 rounded ${view === "following" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              >
+                ★
+              </button>
+              <button
+                onClick={() => setView("account")}
+                className={`p-2 rounded ${view === "account" ? "bg-zinc-800 text-white" : "text-zinc-500"}`}
+              >
+                ☺
+              </button>
+            </div>
           </header>
 
           <div className="max-w-5xl mx-auto p-6 md:p-10 space-y-8">
@@ -233,12 +288,14 @@ export default function Main() {
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">
                   {view === 'feed' && "Your Dashboard"}
-                  {view === 'generate' && "AI Generator"}
+                  {view === 'generate' && "GIF Generator"}
+                  {view === 'following' && "Following Feed"}
                   {view === 'account' && "Explore Community"}
                 </h1>
                 <p className="text-zinc-500 text-sm">
                   {view === 'feed' && "Manage and view your collection."}
                   {view === 'generate' && "Create something unique."}
+                  {view === 'following' && "See what your friends are creating."}
                   {view === 'account' && "Connect with other creators."}
                 </p>
               </div>
@@ -274,6 +331,81 @@ export default function Main() {
                         <img src={g.url} alt="gif" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all flex items-end p-3">
                           <span className="text-xs font-mono text-pink-400">GIF_ID_{i}</span>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+             {/* --- VIEW: FOLLOWING --- */}
+            {view === "following" && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-white">Following GIFs</h2>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      GIFs created by people you follow.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={followingPage === 1 || followingGifsLoading}
+                      onClick={() => loadFollowingGifs(followingPage - 1)}
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-xs text-zinc-500">
+                      Page {followingPage}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      disabled={!followingHasMore || followingGifsLoading}
+                      onClick={() => loadFollowingGifs(followingPage + 1)}
+                    >
+                      Next
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={followingGifsLoading}
+                      onClick={() => loadFollowingGifs(followingPage)}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+
+                {followingGifsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Spinner />
+                  </div>
+                ) : followingGifs.length === 0 ? (
+                  <div className="py-12 text-center text-zinc-500 text-sm">
+                    No GIFs from people you follow yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {followingGifs.map((g, i) => (
+                      <Card
+                        key={g.gifId || i}
+                        className="overflow-hidden group bg-zinc-900/60 border border-zinc-800 hover:border-pink-500/50 transition-all"
+                      >
+                        <div className="relative aspect-square bg-black/40">
+                          <img
+                            src={g.url}
+                            alt="gif"
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                          />
+                        </div>
+                        <div className="p-2 text-[11px] text-zinc-400 flex justify-between gap-2">
+                          <span className="truncate">
+                            {g.userName || "Unknown"}
+                          </span>
+                          <span className="opacity-60">
+                            #{i + 1 + (followingPage - 1) * 10}
+                          </span>
                         </div>
                       </Card>
                     ))}
