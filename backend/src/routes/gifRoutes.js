@@ -21,7 +21,6 @@ async function searchTenor(params) {
 router.post("/me/gifs", verifyToken, async (req, res) => {
   try {
     const uid = req.auth.uid;
-
     const {
       q,
       client_key = process.env.TENOR_CLIENT_KEY,
@@ -31,15 +30,13 @@ router.post("/me/gifs", verifyToken, async (req, res) => {
       media_filter = "gif,tinygif",
       ar_range = "all",
       random = false,
-      limit = 1,
+      limit = 10, // Changed from 1 to 10 to get multiple options
       searchfilter,
       pos,
     } = req.body || {};
-
     if (!q || typeof q !== "string") {
       return res.status(400).json({ error: "Missing required 'q' (search string)" });
     }
-
     const tenorParams = {
       q,
       client_key,
@@ -53,30 +50,28 @@ router.post("/me/gifs", verifyToken, async (req, res) => {
     };
     if (searchfilter) tenorParams.searchfilter = searchfilter;
     if (pos) tenorParams.pos = pos;
-
     const data = await searchTenor(tenorParams);
     const results = data?.results || [];
     if (!results.length) return res.status(404).json({ error: "No Tenor results for that query" });
-
-    const media = results[0]?.media_formats || {};
+    
+    // Pick a random result from the top 10
+    const randomIndex = Math.floor(Math.random() * results.length);
+    const selectedResult = results[randomIndex];
+    
+    const media = selectedResult?.media_formats || {};
     const pickedUrl =
       media?.gif?.url ||
       media?.tinygif?.url ||
       media?.mp4?.url ||
       media?.tinymp4?.url;
-
     if (!pickedUrl) {
       return res.status(502).json({ error: "Tenor response missing a usable media URL" });
     }
-
     const user = await User.findOne({ id: uid });
     if (!user) return res.status(404).json({ error: "User not found" });
-
     user.gifs.push({ url: pickedUrl });
     await user.save();
-
     const savedGif = user.gifs[user.gifs.length - 1];
-
     return res.json({
       success: true,
       gif: savedGif,
@@ -88,7 +83,6 @@ router.post("/me/gifs", verifyToken, async (req, res) => {
     return res.status(status).json({ error: "Server error while creating user GIF" });
   }
 });
-
 // GET /api/me/gifs -> list all user gifs (newest first)
 router.get("/me/gifs", verifyToken, async (req, res) => {
   try {
@@ -118,6 +112,85 @@ router.post("/users/:uid/gifs", verifyToken, ensureSelfParam("uid"), async (req,
 router.get("/users/:uid/gifs", verifyToken, ensureSelfParam("uid"), async (req, res, next) => {
   req.url = "/me/gifs";
   router.handle(req, res, next);
+});
+
+router.get("/me/following/gifs", verifyToken, async (req, res) => {
+  try {
+    const uid = req.auth.uid;
+
+    // Parse pagination
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const rawLimit = parseInt(req.query.limit, 10) || 10;
+    const limit = Math.min(Math.max(rawLimit, 1), 50); // 1–50
+    const skip = (page - 1) * limit;
+
+    // 1) Find the current user's "following" list
+    const currentUser = await User.findOne({ id: uid }, { following: 1 }).lean();
+    if (!currentUser) {
+      return res.status(404).json({ error: "Current user not found" });
+    }
+
+    const followingIds = currentUser.following || [];
+    if (followingIds.length === 0) {
+      return res.json({
+        success: true,
+        page,
+        limit,
+        hasMore: false,
+        items: [],
+      });
+    }
+
+    // 2) Aggregate GIFs from followed users
+    const pipeline = [
+      // Only users the current user is following
+      { $match: { id: { $in: followingIds } } },
+
+      // Only keep what we need
+      { $project: { id: 1, name: 1, gifs: 1 } },
+
+      // Flatten gifs array
+      { $unwind: "$gifs" },
+
+      // Sort by newest first
+      { $sort: { "gifs.dateAdded": -1 } },
+
+      // Apply pagination
+      { $skip: skip },
+      { $limit: limit },
+
+      // Shape the response
+      {
+        $project: {
+          _id: 0,
+          userId: "$id",
+          userName: "$name",
+          gifId: "$gifs._id",
+          url: "$gifs.url",
+          dateAdded: "$gifs.dateAdded",
+          likes: "$gifs.likes",
+        },
+      },
+    ];
+
+    const items = await User.aggregate(pipeline);
+
+    // Simple hasMore indicator (if we got full page, assume maybe more)
+    const hasMore = items.length === limit;
+
+    return res.json({
+      success: true,
+      page,
+      limit,
+      hasMore,
+      items,
+    });
+  } catch (err) {
+    console.error("Error fetching following GIF feed:", err);
+    return res
+      .status(500)
+      .json({ error: "Server error while fetching following GIF feed" });
+  }
 });
 
 export default router;
