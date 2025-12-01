@@ -134,6 +134,64 @@ router.post("/me/gifs", verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/me/following/gifs -> get GIFs from users you follow (MUST be before /me/gifs)
+router.get("/me/following/gifs", verifyToken, async (req, res) => {
+  try {
+    const uid = req.auth.uid;
+    const { page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+
+    // Get current user to find who they follow
+    const user = await User.findOne({ id: uid }).lean();
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const followingIds = user.following || [];
+    
+    if (followingIds.length === 0) {
+      return res.json({ success: true, items: [], hasMore: false });
+    }
+
+    // Get all users that current user follows
+    const followedUsers = await User.find({ id: { $in: followingIds } }).lean();
+
+    // Collect all GIFs from followed users with user info
+    const allGifs = [];
+    for (const followedUser of followedUsers) {
+      const userGifs = followedUser.gifs || [];
+      for (const gif of userGifs) {
+        allGifs.push({
+          url: gif.url,
+          title: gif.title,
+          dateAdded: gif.dateAdded,
+          gifId: gif._id,
+          userId: followedUser.id,
+          userName: followedUser.name || followedUser.email?.split('@')[0] || 'Unknown'
+        });
+      }
+    }
+
+    // Sort by date (newest first)
+    allGifs.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+
+    // Paginate
+    const startIdx = (pageNum - 1) * limitNum;
+    const endIdx = startIdx + limitNum;
+    const paginatedGifs = allGifs.slice(startIdx, endIdx);
+    const hasMore = endIdx < allGifs.length;
+
+    return res.json({ 
+      success: true, 
+      items: paginatedGifs,
+      hasMore,
+      total: allGifs.length
+    });
+  } catch (err) {
+    console.error("Error fetching following GIFs:", err);
+    return res.status(500).json({ error: "Server error while fetching following GIFs" });
+  }
+});
+
 // GET /api/me/gifs -> list all user gifs (newest first)
 router.get("/me/gifs", verifyToken, async (req, res) => {
   try {
